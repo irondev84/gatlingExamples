@@ -22,29 +22,40 @@ public class MyFirstTest extends Simulation {
             .upgradeInsecureRequestsHeader("1")
             .userAgentHeader("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/116.0");
 
+    FeederBuilder.Batchable searchFeeder =
+            csv("data/search.csv").random();
 
     ChainBuilder searchForComputer =
             exec(
             http("Load computer list page")
                     .get("/computers"))
                     .pause(1)
-            .exec(
-            http("Load specific computer")
-                    .get("/computers/381"))
-                    .pause(1);
+            .feed(searchFeeder)
+            .exec(http("Search computers_#{searchCriterion}")
+                    .get("/computers?f=#{searchCriterion}")
+                    .check(css("a:contains('#{searchComputerName}')", "href")
+                            .saveAs("computerURL")))
+                    .pause(1)
+            .exec(http("Load computer details_#{searchComputerName}")
+                    .get("#{computerURL}"))
+                    .pause(2);
+
+    FeederBuilder.Batchable computerFeeder =
+            csv("data/computers.csv").circular();
 
     ChainBuilder addNewComputer =
             exec(
             http("Add new computer form")
                     .get("/computers/new"))
                     .pause(1)
-            .exec(
-            http("Add details new computer")
-                    .post("/computers")
-                    .formParam("name", "test11")
-                    .formParam("introduced", "2023-09-09")
-                    .formParam("discontinued", "2024-10-10")
-                    .formParam("company", "1")
+                    .feed(computerFeeder)
+            .exec(http("Create a computer_#{computerName}")
+                        .post("/computers")
+                        .formParam("name", "#{computerName}")
+                        .formParam("introduced", "#{introduced}")
+                        .formParam("discontinued", "#{discontinued}")
+                        .formParam("company", "#{companyId}")
+                    .check(status().is(200))
             );
 
     ChainBuilder deleteComputer =
